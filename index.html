@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Tracking</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Stock Tracking</h1>
+  </header>
+  <main>
+    <section class="search-section">
+      <input id="symbolInput" type="text" placeholder="Stock symbol (e.g. AAPL)" />
+      <div class="field">
+        <select id="listSelect"></select>
+      </div>
+      <button id="addBtn">Search &amp; Add</button>
+      <button id="deleteListBtn">Delete List</button>
+      <span id="status"></span>
+    </section>
+
+    <section class="view-section">
+      <input id="viewNameInput" type="text" placeholder="Watch List Name" />
+      <button id="addViewListBtn">Add Watch List</button>
+      <button id="refreshBtn">Refresh</button>
+      <button id="exportBtn" title="Export local repository">Export</button>
+      <input id="importInput" type="file" accept="application/json" style="display:none" />
+      <button id="importBtn" title="Import local repository">Import</button>
+      <button id="clearBtn">Clear</button>
+      <button id="printBtn">Print</button>
+    </section>
+
+    <section class="table-section">
+      <table id="stockTable">
+        <thead>
+          <tr>
+            <th>Stock Symbol</th>
+            <th>Price</th>
+            <th>Cost Average</th>
+            <th>Quantity</th>
+            <th>Mkt Val</th>
+            <th>Day Chng%</th>
+            <th>Day Chng $</th>
+            <th>Gain/Loss %</th>
+            <th>Gain/Loss $</th>
+            <th>52 Weeks Low</th>
+            <th>52 Weeks High</th>
+            <th>Company Name</th>
+          </tr>
+        </thead>
+        <tbody id="stockBody"></tbody>
+        <tfoot id="stockFoot"></tfoot>
+      </table>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
