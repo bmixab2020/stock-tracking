@@ -96,12 +96,14 @@ async function renderList(name) {
   if (!name) return;
   const lists = loadLists();
   const holdings = lists[name] || [];
+  await Promise.all(holdings.map(async h => {
+    try { quotes[h.symbol] = await fetchQuote(h.symbol); }
+    catch (e) { /* keep cached */ }
+  }));
   let totalMkt = 0, totalDay = 0, totalGain = 0, totalCost = 0;
 
   for (const h of holdings) {
-    let q;
-    try { q = await fetchQuote(h.symbol); quotes[h.symbol] = q; }
-    catch (e) { q = quotes[h.symbol]; }
+    const q = quotes[h.symbol];
     const price = q?.regularMarketPrice ?? 0;
     const dayPct = q?.regularMarketChangePercent ?? 0;
     const dayChg = q?.regularMarketChange ?? 0;
