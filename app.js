@@ -2,6 +2,7 @@ const STORAGE_KEY = 'stockLists';
 const quotes = {};
 let sortState = { col: 0, dir: 1 };
 let isRendering = false;
+let currentDetailSymbol = '';
 
 function loadLists() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
@@ -289,7 +290,7 @@ async function renderList(name) {
 }
 
 async function fetchDetail(symbol) {
-  const data = { symbol, price: null, marketCap: '-', earningsDate: '-', company: symbol, description: '', employees: '-', news: [], splits: [], marketCapRaw: '-' };
+  const data = { symbol, price: null, marketCap: '-', earningsDate: '-', company: symbol, description: '', employees: '-', news: [], splits: [], dividends: [], recentShortVolume: [], dividend: '-', shortRatio: '-', shortPercent: '-', sharesShort: '-', marketCapRaw: '-' };
   try {
     const chartUrl = `https://proxy.cors.dev/https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
     const chartRes = await fetch(chartUrl);
@@ -313,6 +314,28 @@ async function fetchDetail(symbol) {
         reverse: s.denominator > s.numerator
       })).sort((a,b) => new Date(b.date) - new Date(a.date));
     } catch (e) { data.splits = []; }
+    // dividend history (last 5)
+    try {
+      const divUrl = `https://proxy.cors.dev/https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2y&events=div`;
+      const divRes = await fetch(divUrl);
+      const divJson = await divRes.json();
+      const divs = divJson?.chart?.result?.[0]?.events?.dividends || {};
+      data.dividends = Object.values(divs).map(d => ({
+        date: new Date(d.date * 1000).toLocaleDateString(),
+        amount: d.amount
+      })).sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0,5);
+    } catch (e) { data.dividends = []; }
+    // recent volume (last 5 trading days)
+    try {
+      const volUrl = `https://proxy.cors.dev/https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1mo`;
+      const volRes = await fetch(volUrl);
+      const volJson = await volRes.json();
+      const r = volJson?.chart?.result?.[0];
+      const ts = r?.timestamp || [];
+      const vols = r?.indicators?.quote?.[0]?.volume || [];
+      const pairs = ts.map((t,i) => ({ date: new Date(t*1000).toLocaleDateString(), volume: vols[i] })).filter(p => p.volume != null);
+      data.recentShortVolume = pairs.slice(-5);
+    } catch (e) { data.recentShortVolume = []; }
   } catch (e) {}
   try {
     const pageUrl = `https://proxy.cors.dev/https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
@@ -338,7 +361,29 @@ async function fetchDetail(symbol) {
     if (sectorMatch) data.sector = sectorMatch[1];
     const industryMatch = html.match(/\\"industryDisp\\":\\"([^"\\]+)\\"/);
     if (industryMatch) data.industry = industryMatch[1];
+    const divIdx = html.indexOf('Forward Dividend');
+    if (divIdx !== -1) {
+      const divSlice = html.slice(divIdx, divIdx + 200);
+      const divMatch = divSlice.match(/title="([^"]+)"/);
+      if (divMatch) data.dividend = divMatch[1];
+    }
   } catch (e) {}
+  try {
+    const statsUrl = 'https://proxy.cors.dev/https://finance.yahoo.com/quote/' + encodeURIComponent(symbol) + '/key-statistics';
+    const statsRes = await fetch(statsUrl);
+    const statsHtml = await statsRes.text();
+    function extractStat(label) {
+      const idx = statsHtml.indexOf(label);
+      if (idx === -1) return '-';
+      const slice = statsHtml.slice(idx, idx + 160);
+      const m = slice.match(/<td class="value[^>]*>([^<]+)</);
+      return m ? m[1].trim() : '-';
+    }
+    data.shortRatio = extractStat('Short Ratio');
+    data.shortPercent = extractStat('Short % of Float');
+    data.sharesShort = extractStat('Shares Short');
+  } catch (e) {}
+
   try {
     const newsUrl = `https://proxy.cors.dev/https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(symbol)}&region=US&lang=en-US`;
     const newsRes = await fetch(newsUrl);
@@ -419,6 +464,23 @@ function renderDetail(data) {
       </table>
     </div>
     <div class="detail-section">
+      <h3>Dividend & Short Information</h3>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Forward Dividend & Yield</div><div class="value">${data.dividend}</div></div>
+        <div class="detail-item"><div class="label">Short Ratio</div><div class="value">${data.shortRatio}</div></div>
+        <div class="detail-item"><div class="label">Short % of Float</div><div class="value">${data.shortPercent}</div></div>
+        <div class="detail-item"><div class="label">Shares Short</div><div class="value">${data.sharesShort}</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Dividend History (Last 5 times)</h3>
+      ${data.dividends && data.dividends.length ? '<ul>' + data.dividends.map(d => `<li>${d.date}: $${Number(d.amount).toFixed(4)}</li>`).join('') + '</ul>' : '<p>No dividends recorded.</p>'}
+    </div>
+    <div class="detail-section">
+      <h3>Recent Short Volume (Last 5 days)</h3>
+      ${data.recentShortVolume && data.recentShortVolume.length ? '<ul>' + data.recentShortVolume.map(v => `<li>${v.date}: ${Number(v.volume).toLocaleString()}</li>`).join('') + '</ul>' : '<p>No volume data.</p>'}
+    </div>
+    <div class="detail-section">
       <h3>Risk Analysis</h3>
       <div class="detail-grid">
         <div class="detail-item"><div class="label">Bankruptcy Risk Score (0-100, higher=worse)</div><div class="value">${riskScore}</div></div>
@@ -430,6 +492,7 @@ function renderDetail(data) {
 }
 
 function openDetail(symbol) {
+  currentDetailSymbol = symbol;
   const modal = document.getElementById('detailModal');
   const body = document.getElementById('detailBody');
   modal.classList.add('show');
@@ -576,6 +639,16 @@ document.getElementById('closeModal').addEventListener('click', () => {
 });
 document.getElementById('detailModal').addEventListener('click', (e) => {
   if (e.target.id === 'detailModal') e.target.classList.remove('show');
+});
+
+document.getElementById('printDetailBtn').addEventListener('click', () => {
+  const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+  document.title = 'stockTrack' + currentDetailSymbol + ts;
+  document.body.classList.add('printing-detail');
+  window.print();
+});
+window.addEventListener('afterprint', () => {
+  document.body.classList.remove('printing-detail');
 });
 
 updateSortIcons();

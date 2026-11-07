@@ -35,21 +35,12 @@ th:nth-child(13), td:nth-child(13) { text-align: left; }
   .cell-input { border: none; background: transparent; padding: 0; font: inherit; color: inherit; }
 }
 
-th:nth-child(3), th:nth-child(4) { text-align: center; }
-
-@media (max-width: 768px) {
-  header h1 { font-size: 18px; }
-  .search-section, .view-section { flex-direction: column; align-items: stretch; }
-  input, select, button { width: 100%; }
-  .field { width: 100%; }
-  table { font-size: 10px; }
-  th, td { padding: 3px 4px; }
-  input.cell-input { width: 60px; }
-}
-@media (max-width: 480px) {
-  table { font-size: 9px; }
-  th, td { padding: 2px 3px; }
-  input.cell-input { width: 50px; }
+@media print {
+  body.printing-detail > * { display: none; }
+  body.printing-detail #detailModal, body.printing-detail #detailModal * { visibility: visible; }
+  body.printing-detail #detailModal { display: block; position: static; width: 100%; height: auto; background: #fff; }
+  body.printing-detail .modal-content { max-height: none; overflow: visible; height: auto; box-shadow: none; margin: 0; width: 100%; }
+  body.printing-detail .close, body.printing-detail #printDetailBtn { display: none; }
 }
 
 
@@ -73,4 +64,6 @@ th:nth-child(3), th:nth-child(4) { text-align: center; }
 .news-list li { margin-bottom: 6px; }
 .news-list a { color: #2d6cdf; text-decoration: none; }
 .news-list a:hover { text-decoration: underline; }
+.print-btn { background: #2d6cdf; color: #fff; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 13px; }
+.print-btn:hover { background: #1f57b8; }
 
