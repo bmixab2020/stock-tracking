@@ -168,7 +168,7 @@ function updateTotals(name) {
     '<td class="' + (totalDay >= 0 ? 'pos' : 'neg') + '">' + money(totalDay) + '</td>' +
     '<td class="' + (totalGainPct >= 0 ? 'pos' : 'neg') + '">' + pct(totalGainPct) + '</td>' +
     '<td class="' + (totalGain >= 0 ? 'pos' : 'neg') + '">' + money(totalGain) + '</td>' +
-    '<td></td><td></td><td></td><td></td><td></td>' +
+    '<td></td><td></td><td></td><td></td><td></td><td></td>' +
   '</tr>';
 }
 
@@ -215,7 +215,7 @@ async function renderList(name) {
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><button class="delete" data-symbol="${h.symbol}" title="Deleting stock from the list">x</button> ${h.symbol}</td>
+        <td><a href="#" class="sym-link" data-symbol="${h.symbol}" title="See detail on this stock">${h.symbol}</a></td>
         <td>${money(price)}</td>
         <td><input class="cell-input" data-symbol="${h.symbol}" data-field="costAvg" type="text" value="$${Number(costAvg).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}" /></td>
         <td><input class="cell-input" data-symbol="${h.symbol}" data-field="qty" type="text" value="${Number(qty).toLocaleString()}" /></td>
@@ -229,6 +229,7 @@ async function renderList(name) {
         <td>${q?.earningsDate ?? '-'}</td>
         <td>${(q?.companyName ?? h.symbol).slice(0, 20)}</td>
         <td>${q?.marketCap ?? '-'}</td>
+        <td><button class="delete" data-symbol="${h.symbol}" title="Deleting stock from the list">x</button></td>
       `;
       body.appendChild(tr);
     }
@@ -274,10 +275,170 @@ async function renderList(name) {
       });
     });
 
+    body.querySelectorAll('.sym-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        openDetail(link.dataset.symbol);
+      });
+    });
+
     updateTotals(name);
   } finally {
     isRendering = false;
   }
+}
+
+async function fetchDetail(symbol) {
+  const data = { symbol, price: null, marketCap: '-', earningsDate: '-', company: symbol, description: '', employees: '-', news: [], splits: [], marketCapRaw: '-' };
+  try {
+    const chartUrl = `https://proxy.cors.dev/https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+    const chartRes = await fetch(chartUrl);
+    const chartJson = await chartRes.json();
+    const meta = chartJson?.chart?.result?.[0]?.meta;
+    if (meta) {
+      data.price = meta.regularMarketPrice;
+      data.company = meta.longName || meta.shortName || symbol;
+      data.low = meta.fiftyTwoWeekLow;
+      data.high = meta.fiftyTwoWeekHigh;
+    }
+    // split history
+    try {
+      const splitUrl = `https://proxy.cors.dev/https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1mo&range=max&events=split`;
+      const splitRes = await fetch(splitUrl);
+      const splitJson = await splitRes.json();
+      const splits = splitJson?.chart?.result?.[0]?.events?.splits || {};
+      data.splits = Object.values(splits).map(s => ({
+        date: new Date(s.date * 1000).toLocaleDateString(),
+        ratio: s.splitRatio,
+        reverse: s.denominator > s.numerator
+      })).sort((a,b) => new Date(b.date) - new Date(a.date));
+    } catch (e) { data.splits = []; }
+  } catch (e) {}
+  try {
+    const pageUrl = `https://proxy.cors.dev/https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+    const pageRes = await fetch(pageUrl);
+    const html = await pageRes.text();
+    const mcIdx = html.indexOf('Market Cap (intraday)');
+    if (mcIdx !== -1) {
+      const mcSlice = html.slice(mcIdx, mcIdx + 300);
+      const mc = mcSlice.match(/data-value="([^"]+)"/);
+      if (mc) data.marketCap = mc[1];
+    }
+    const edIdx = html.indexOf('Earnings Date');
+    if (edIdx !== -1) {
+      const edSlice = html.slice(edIdx, edIdx + 300);
+      const ed = edSlice.match(/<span class="value[^>]*title="([^"]+)"/);
+      if (ed) data.earningsDate = ed[1];
+    }
+    const descMatch = html.match(/\\"longBusinessSummary\\":\\"([^"\\]+)\\"/);
+    if (descMatch) data.description = descMatch[1].replace(/\u002F/g, '/').replace(/\u0026/g, '&');
+    const empMatch = html.match(/\\"fullTimeEmployees\\":(\d+)/);
+    if (empMatch) data.employees = Number(empMatch[1]).toLocaleString();
+    const sectorMatch = html.match(/\\"sectorDisp\\":\\"([^"\\]+)\\"/);
+    if (sectorMatch) data.sector = sectorMatch[1];
+    const industryMatch = html.match(/\\"industryDisp\\":\\"([^"\\]+)\\"/);
+    if (industryMatch) data.industry = industryMatch[1];
+  } catch (e) {}
+  try {
+    const newsUrl = `https://proxy.cors.dev/https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(symbol)}&region=US&lang=en-US`;
+    const newsRes = await fetch(newsUrl);
+    const newsText = await newsRes.text();
+    const items = newsText.match(/<item>[\s\S]*?<\/item>/g) || [];
+    data.news = items.slice(0, 5).map(item => {
+      const title = (item.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
+      const link = (item.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '';
+      return { title: title.replace(/<!\[CDATA\[|\]\]>/g, '').trim(), link: link.trim() };
+    });
+  } catch (e) {}
+  return data;
+}
+
+function renderDetail(data) {
+  const price = data.price != null ? '$' + Number(data.price).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '-';
+  const mc = data.marketCap || '-';
+  const ed = data.earningsDate || '-';
+  const desc = data.description || 'No description available.';
+  const employees = data.employees || '-';
+  const sector = data.sector || '-';
+  const industry = data.industry || '-';
+  const low = data.low != null ? money(data.low) : '-';
+  const high = data.high != null ? money(data.high) : '-';
+  const upside = data.price && data.low && data.high ? (((data.high / data.price) - 1) * 100).toFixed(1) + '%' : '-';
+  const newsHtml = (data.news && data.news.length)
+    ? '<ul class="news-list">' + data.news.map(n => `<li><a href="${n.link}" target="_blank" rel="noopener">${n.title}</a></li>`).join('') + '</ul>'
+    : '<p>No recent news found.</p>';
+
+  // 10-year simulation table
+  const baseRate = 0.08;
+  const bullRate = 0.12;
+  const bearRate = -0.03;
+  let simRows = '';
+  for (let y = 1; y <= 10; y++) {
+    const base = data.price ? data.price * Math.pow(1 + baseRate, y) : null;
+    const bull = data.price ? data.price * Math.pow(1 + bullRate, y) : null;
+    const bear = data.price ? data.price * Math.pow(1 + bearRate, y) : null;
+    simRows += `<tr><td>${y}</td><td>${base != null ? money(base) : '-'}</td><td>${bull != null ? money(bull) : '-'}</td><td>${bear != null ? money(bear) : '-'}</td></tr>`;
+  }
+
+  // Heuristic scores
+  const riskScore = (data.price && data.low) ? Math.max(0, Math.min(100, Math.round((1 - (data.price / (data.low * 1.5 || 1))) * 100))) : 50;
+  const dilutionScore = (data.marketCap && data.marketCap !== '-') ? 30 : 50;
+
+  return `
+    <div class="detail-section">
+      <h2>${data.symbol} - ${data.company}</h2>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Current Price</div><div class="value">${price}</div></div>
+        <div class="detail-item"><div class="label">Market Cap</div><div class="value">${mc}</div></div>
+        <div class="detail-item"><div class="label">52W Low / High</div><div class="value">${low} / ${high}</div></div>
+        <div class="detail-item"><div class="label">Earnings Date</div><div class="value">${ed}</div></div>
+        <div class="detail-item"><div class="label">Sector</div><div class="value">${sector}</div></div>
+        <div class="detail-item"><div class="label">Industry</div><div class="value">${industry}</div></div>
+        <div class="detail-item"><div class="label">Employees</div><div class="value">${employees}</div></div>
+        <div class="detail-item"><div class="label">Upside to 52W High</div><div class="value">${upside}</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Company Overview</h3>
+      <p>${desc}</p>
+    </div>
+    <div class="detail-section">
+      <h3>Split History</h3>
+      ${data.splits && data.splits.length ? '<ul>' + data.splits.map(s => `<li>${s.date}: ${s.ratio}${s.reverse ? ' (reverse split)' : ''}</li>`).join('') + '</ul>' : '<p>No splits recorded.</p>'}
+    </div>
+    <div class="detail-section">
+      <h3>Latest News</h3>
+      ${newsHtml}
+    </div>
+    <div class="detail-section">
+      <h3>10-Year Price Target Simulation</h3>
+      <p style="font-size:11px;color:#555;">Assumptions: Base 8%/yr, Bull 12%/yr, Bear -3%/yr.</p>
+      <table class="sim-table">
+        <thead><tr><th>Year</th><th>Base</th><th>Bull</th><th>Bear</th></tr></thead>
+        <tbody>${simRows}</tbody>
+      </table>
+    </div>
+    <div class="detail-section">
+      <h3>Risk Analysis</h3>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Bankruptcy Risk Score (0-100, higher=worse)</div><div class="value">${riskScore}</div></div>
+        <div class="detail-item"><div class="label">Dilution / Split Risk Score (0-100, higher=worse)</div><div class="value">${dilutionScore}</div></div>
+      </div>
+      <p style="font-size:11px;color:#555;margin-top:8px;">Heuristic scores based on price vs 52W low and available data. Not financial advice.</p>
+    </div>
+  `;
+}
+
+function openDetail(symbol) {
+  const modal = document.getElementById('detailModal');
+  const body = document.getElementById('detailBody');
+  modal.classList.add('show');
+  body.innerHTML = 'Loading ' + symbol + '...';
+  fetchDetail(symbol).then(data => {
+    body.innerHTML = renderDetail(data);
+  }).catch(err => {
+    body.innerHTML = 'Failed to load details: ' + err.message;
+  });
 }
 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
@@ -408,6 +569,13 @@ document.querySelectorAll('th').forEach((th, index) => {
     updateSortIcons();
     if (name) renderList(name);
   });
+});
+
+document.getElementById('closeModal').addEventListener('click', () => {
+  document.getElementById('detailModal').classList.remove('show');
+});
+document.getElementById('detailModal').addEventListener('click', (e) => {
+  if (e.target.id === 'detailModal') e.target.classList.remove('show');
 });
 
 updateSortIcons();
