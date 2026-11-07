@@ -456,14 +456,6 @@ function renderDetail(data) {
       ${newsHtml}
     </div>
     <div class="detail-section">
-      <h3>10-Year Price Target Simulation</h3>
-      <p style="font-size:11px;color:#555;">Assumptions: Base 8%/yr, Bull 12%/yr, Bear -3%/yr.</p>
-      <table class="sim-table">
-        <thead><tr><th>Year</th><th>Base</th><th>Bull</th><th>Bear</th></tr></thead>
-        <tbody>${simRows}</tbody>
-      </table>
-    </div>
-    <div class="detail-section">
       <h3>Dividend & Short Information</h3>
       <div class="detail-grid">
         <div class="detail-item"><div class="label">Forward Dividend & Yield</div><div class="value">${data.dividend}</div></div>
@@ -487,6 +479,14 @@ function renderDetail(data) {
         <div class="detail-item"><div class="label">Dilution / Split Risk Score (0-100, higher=worse)</div><div class="value">${dilutionScore}</div></div>
       </div>
       <p style="font-size:11px;color:#555;margin-top:8px;">Heuristic scores based on price vs 52W low and available data. Not financial advice.</p>
+    </div>
+    <div class="detail-section">
+      <h3>10-Year Price Target Simulation</h3>
+      <p style="font-size:11px;color:#555;">Assumptions: Base 8%/yr, Bull 12%/yr, Bear -3%/yr.</p>
+      <table class="sim-table">
+        <thead><tr><th>Year</th><th>Base</th><th>Bull</th><th>Bear</th></tr></thead>
+        <tbody>${simRows}</tbody>
+      </table>
     </div>
   `;
 }
