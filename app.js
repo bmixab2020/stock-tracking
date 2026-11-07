@@ -15,6 +15,31 @@ function fmt(n, decimals = 2) {
 function money(n) { return '$' + fmt(n); }
 function pct(n) { if (n === null || n === undefined || isNaN(n)) return '-'; return (n >= 0 ? '+' : '') + fmt(n) + '%'; }
 
+async function fetchExtra(symbol) {
+  try {
+    const url = 'https://proxy.cors.dev/https://finance.yahoo.com/quote/' + encodeURIComponent(symbol);
+    const res = await fetch(url);
+    const html = await res.text();
+    const mcIdx = html.indexOf('Market Cap (intraday)');
+    let marketCap = '-';
+    if (mcIdx !== -1) {
+      const mcSlice = html.slice(mcIdx, mcIdx + 300);
+      const mc = mcSlice.match(/data-value="([^"]+)"/);
+      if (mc) marketCap = mc[1];
+    }
+    const edIdx = html.indexOf('Earnings Date');
+    let earningsDate = '-';
+    if (edIdx !== -1) {
+      const edSlice = html.slice(edIdx, edIdx + 300);
+      const ed = edSlice.match(/<span class="value[^>]*title="([^"]+)"/);
+      if (ed) earningsDate = ed[1];
+    }
+    return { marketCap, earningsDate };
+  } catch (e) {
+    return { marketCap: '-', earningsDate: '-' };
+  }
+}
+
 async function fetchQuote(symbol) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
   const proxy = `https://proxy.cors.dev/${url}`;
@@ -101,7 +126,9 @@ function sortValue(h, col) {
     case 8: return gainDollar;
     case 9: return low;
     case 10: return high;
-    case 11: return company;
+    case 11: return q?.earningsDate ?? '-';
+    case 12: return company;
+    case 13: return q?.marketCap ?? '-';
     default: return 0;
   }
 }
@@ -141,7 +168,7 @@ function updateTotals(name) {
     '<td class="' + (totalDay >= 0 ? 'pos' : 'neg') + '">' + money(totalDay) + '</td>' +
     '<td class="' + (totalGainPct >= 0 ? 'pos' : 'neg') + '">' + pct(totalGainPct) + '</td>' +
     '<td class="' + (totalGain >= 0 ? 'pos' : 'neg') + '">' + money(totalGain) + '</td>' +
-    '<td></td><td></td><td></td>' +
+    '<td></td><td></td><td></td><td></td><td></td>' +
   '</tr>';
 }
 
@@ -157,8 +184,13 @@ async function renderList(name) {
     const lists = loadLists();
     const holdings = lists[name] || [];
     await Promise.all(holdings.map(async h => {
-      try { quotes[h.symbol] = await fetchQuote(h.symbol); }
-      catch (e) { /* keep cached */ }
+      try {
+        const [q, extra] = await Promise.all([fetchQuote(h.symbol), fetchExtra(h.symbol)]);
+        quotes[h.symbol] = Object.assign({}, q, extra);
+      } catch (e) {
+        try { quotes[h.symbol] = await fetchQuote(h.symbol); }
+        catch (e2) { /* keep cached */ }
+      }
     }));
     const sortedHoldings = sortHoldings(holdings);
     let totalMkt = 0, totalDay = 0, totalGain = 0, totalCost = 0;
@@ -194,7 +226,9 @@ async function renderList(name) {
         <td class="${gainDollar >= 0 ? 'pos' : 'neg'}">${money(gainDollar)}</td>
         <td>${money(low)}</td>
         <td>${money(high)}</td>
+        <td>${q?.earningsDate ?? '-'}</td>
         <td>${(q?.companyName ?? h.symbol).slice(0, 20)}</td>
+        <td>${q?.marketCap ?? '-'}</td>
       `;
       body.appendChild(tr);
     }
@@ -300,6 +334,7 @@ function addViewList() {
 }
 
 document.getElementById('addBtn').addEventListener('click', addStock);
+document.getElementById('symbolInput').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });
 document.getElementById('symbolInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') addStock(); });
 document.getElementById('addViewListBtn').addEventListener('click', addViewList);
 document.getElementById('refreshBtn').addEventListener('click', () => {
@@ -382,3 +417,4 @@ populateListSelect('My Watchlist');
 document.getElementById('listSelect').value = 'My Watchlist';
 updateDeleteButton();
 renderList('My Watchlist');
+
