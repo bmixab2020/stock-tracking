@@ -118,11 +118,11 @@ function sortValue(h, col) {
   switch (col) {
     case 0: return h.symbol;
     case 1: return price;
-    case 2: return costAvg;
-    case 3: return qty;
-    case 4: return mktVal;
-    case 5: return dayPct;
-    case 6: return dayDollar;
+    case 2: return dayPct;
+    case 3: return dayDollar;
+    case 4: return costAvg;
+    case 5: return qty;
+    case 6: return mktVal;
     case 7: return gainPct;
     case 8: return gainDollar;
     case 9: return low;
@@ -157,16 +157,15 @@ function updateTotals(name) {
     const qty = Number(h.qty) || 0;
     const costAvg = Number(h.costAvg) || 0;
     totalMkt += price * qty;
-    totalDay += (q?.regularMarketChange ?? 0) * qty;
+    totalDay += (q?.regularMarketChange ?? 0);
     totalGain += (price - costAvg) * qty;
     totalCost += costAvg * qty;
   }
   const totalGainPct = totalCost > 0 ? ((totalMkt / totalCost) - 1) * 100 : 0;
   const foot = document.getElementById('stockFoot');
   foot.innerHTML = '<tr>' +
-    '<td>Total</td><td></td><td></td><td></td>' +
-    '<td>' + money(totalMkt) + '</td><td></td>' +
-    '<td class="' + (totalDay >= 0 ? 'pos' : 'neg') + '">' + money(totalDay) + '</td>' +
+    '<td>Total</td><td></td><td></td><td class="' + (totalDay >= 0 ? 'pos' : 'neg') + '">' + money(totalDay) + '</td>' +
+    '<td></td><td></td><td>' + money(totalMkt) + '</td>' +
     '<td class="' + (totalGainPct >= 0 ? 'pos' : 'neg') + '">' + pct(totalGainPct) + '</td>' +
     '<td class="' + (totalGain >= 0 ? 'pos' : 'neg') + '">' + money(totalGain) + '</td>' +
     '<td></td><td></td><td></td><td></td><td></td><td></td>' +
@@ -206,7 +205,7 @@ async function renderList(name) {
       const qty = Number(h.qty) || 0;
       const costAvg = Number(h.costAvg) || 0;
       const mktVal = price * qty;
-      const dayDollar = dayChg * qty;
+      const dayDollar = dayChg;
       const gainDollar = (price - costAvg) * qty;
       const gainPct = costAvg > 0 ? ((price / costAvg) - 1) * 100 : 0;
       totalMkt += mktVal;
@@ -218,11 +217,11 @@ async function renderList(name) {
       tr.innerHTML = `
         <td><a href="#" class="sym-link" data-symbol="${h.symbol}" title="See detail on this stock">${h.symbol}</a></td>
         <td>${money(price)}</td>
+        <td class="${dayPct >= 0 ? 'pos' : 'neg'}">${pct(dayPct)}</td>
+        <td class="${dayDollar >= 0 ? 'pos' : 'neg'}">${money(dayDollar)}</td>
         <td><input class="cell-input" data-symbol="${h.symbol}" data-field="costAvg" type="text" value="$${Number(costAvg).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}" /></td>
         <td><input class="cell-input" data-symbol="${h.symbol}" data-field="qty" type="text" value="${Number(qty).toLocaleString()}" /></td>
         <td>${money(mktVal)}</td>
-        <td class="${dayPct >= 0 ? 'pos' : 'neg'}">${pct(dayPct)}</td>
-        <td class="${dayDollar >= 0 ? 'pos' : 'neg'}">${money(dayDollar)}</td>
         <td class="${gainPct >= 0 ? 'pos' : 'neg'}">${pct(gainPct)}</td>
         <td class="${gainDollar >= 0 ? 'pos' : 'neg'}">${money(gainDollar)}</td>
         <td>${money(low)}</td>
@@ -257,7 +256,7 @@ async function renderList(name) {
           const gainDollar = (price - costAvg) * qty;
           const gainPct = costAvg > 0 ? ((price / costAvg) - 1) * 100 : 0;
           const cells = tr.querySelectorAll('td');
-          cells[4].textContent = money(mktVal);
+          cells[6].textContent = money(mktVal);
           cells[7].textContent = pct(gainPct);
           cells[7].className = gainPct >= 0 ? 'pos' : 'neg';
           cells[8].textContent = money(gainDollar);
@@ -290,7 +289,7 @@ async function renderList(name) {
 }
 
 async function fetchDetail(symbol) {
-  const data = { symbol, price: null, marketCap: '-', earningsDate: '-', company: symbol, description: '', employees: '-', news: [], splits: [], dividends: [], recentShortVolume: [], dividend: '-', shortRatio: '-', shortPercent: '-', sharesShort: '-', marketCapRaw: '-' };
+  const data = { symbol, price: null, marketCap: '-', earningsDate: '-', company: symbol, description: '', employees: '-', news: [], splits: [], dividends: [], recentShortVolume: [], history: [], dividend: '-', shortRatio: '-', shortPercent: '-', sharesShort: '-', marketCapRaw: '-' };
   try {
     const chartUrl = `https://proxy.cors.dev/https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
     const chartRes = await fetch(chartUrl);
@@ -314,6 +313,16 @@ async function fetchDetail(symbol) {
         reverse: s.denominator > s.numerator
       })).sort((a,b) => new Date(b.date) - new Date(a.date));
     } catch (e) { data.splits = []; }
+    // price history (1 year)
+    try {
+      const histUrl = `https://proxy.cors.dev/https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1y`;
+      const histRes = await fetch(histUrl);
+      const histJson = await histRes.json();
+      const r = histJson?.chart?.result?.[0];
+      const ts = r?.timestamp || [];
+      const closes = r?.indicators?.quote?.[0]?.close || [];
+      data.history = ts.map((t, i) => ({ date: new Date(t * 1000).toLocaleDateString(), price: closes[i] })).filter(p => p.price != null);
+    } catch (e) { data.history = []; }
     // dividend history (last 5)
     try {
       const divUrl = `https://proxy.cors.dev/https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2y&events=div`;
@@ -377,7 +386,10 @@ async function fetchDetail(symbol) {
       if (idx === -1) return '-';
       const slice = statsHtml.slice(idx, idx + 160);
       const m = slice.match(/<td class="value[^>]*>([^<]+)</);
-      return m ? m[1].trim() : '-';
+      const d = slice.match(/\(([^)]+)\)/);
+      const val = m ? m[1].trim() : '-';
+      const dt = d ? d[1] : '';
+      return dt ? val + ' (' + dt + ')' : val;
     }
     data.shortRatio = extractStat('Short Ratio');
     data.shortPercent = extractStat('Short % of Float');
@@ -398,6 +410,7 @@ async function fetchDetail(symbol) {
   return data;
 }
 
+
 function renderDetail(data) {
   const price = data.price != null ? '$' + Number(data.price).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '-';
   const mc = data.marketCap || '-';
@@ -413,19 +426,6 @@ function renderDetail(data) {
     ? '<ul class="news-list">' + data.news.map(n => `<li><a href="${n.link}" target="_blank" rel="noopener">${n.title}</a></li>`).join('') + '</ul>'
     : '<p>No recent news found.</p>';
 
-  // 10-year simulation table
-  const baseRate = 0.08;
-  const bullRate = 0.12;
-  const bearRate = -0.03;
-  let simRows = '';
-  for (let y = 1; y <= 10; y++) {
-    const base = data.price ? data.price * Math.pow(1 + baseRate, y) : null;
-    const bull = data.price ? data.price * Math.pow(1 + bullRate, y) : null;
-    const bear = data.price ? data.price * Math.pow(1 + bearRate, y) : null;
-    simRows += `<tr><td>${y}</td><td>${base != null ? money(base) : '-'}</td><td>${bull != null ? money(bull) : '-'}</td><td>${bear != null ? money(bear) : '-'}</td></tr>`;
-  }
-
-  // Heuristic scores
   const riskScore = (data.price && data.low) ? Math.max(0, Math.min(100, Math.round((1 - (data.price / (data.low * 1.5 || 1))) * 100))) : 50;
   const dilutionScore = (data.marketCap && data.marketCap !== '-') ? 30 : 50;
 
@@ -456,6 +456,10 @@ function renderDetail(data) {
       ${newsHtml}
     </div>
     <div class="detail-section">
+      <h3>Price History</h3>
+      <p style="margin-left:16px;"><a href="https://finance.yahoo.com/quote/${data.symbol}/" target="_blank" rel="noopener">View Price History on Yahoo Finance</a></p>
+    </div>
+    <div class="detail-section">
       <h3>Dividend & Short Information</h3>
       <div class="detail-grid">
         <div class="detail-item"><div class="label">Forward Dividend & Yield</div><div class="value">${data.dividend}</div></div>
@@ -481,12 +485,16 @@ function renderDetail(data) {
       <p style="font-size:11px;color:#555;margin-top:8px;">Heuristic scores based on price vs 52W low and available data. Not financial advice.</p>
     </div>
     <div class="detail-section">
-      <h3>10-Year Price Target Simulation</h3>
-      <p style="font-size:11px;color:#555;">Assumptions: Base 8%/yr, Bull 12%/yr, Bear -3%/yr.</p>
-      <table class="sim-table">
-        <thead><tr><th>Year</th><th>Base</th><th>Bull</th><th>Bear</th></tr></thead>
-        <tbody>${simRows}</tbody>
-      </table>
+      <h3>Options (Put/Call) &amp; Expiration Dates</h3>
+      <p style="margin-left:16px;"><a href="https://finance.yahoo.com/quote/${data.symbol}/options" target="_blank" rel="noopener">View options on Yahoo Finance</a></p>
+    </div>
+    <div class="detail-section">
+      <h3>Stock Lockup Period</h3>
+      <p style="margin-left:16px;"><a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company=${encodeURIComponent(data.company)}&type=10-K&dateb=&owner=include&count=10" target="_blank" rel="noopener">Search SEC EDGAR filings</a></p>
+    </div>
+    <div class="detail-section">
+      <h3>Warrants &amp; Redemption Dates</h3>
+      <p style="margin-left:16px;"><a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company=${encodeURIComponent(data.company)}&type=10-K&dateb=&owner=include&count=10" target="_blank" rel="noopener">Search SEC EDGAR filings</a></p>
     </div>
   `;
 }

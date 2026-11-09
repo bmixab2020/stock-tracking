@@ -49,8 +49,8 @@ th:nth-child(13), td:nth-child(13) { text-align: left; }
 .modal-content { background: #fff; margin: 5% auto; padding: 20px; border-radius: 8px; width: 90%; max-width: 900px; max-height: 80vh; overflow: auto; }
 .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
 .close:hover { color: #000; }
-.sym-link { color: #1f3864; text-decoration: none; font-weight: 600; }
-.sym-link:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.sym-link { color: #0000ff; text-decoration: none; font-weight: 400; }
+.sym-link:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .detail-section { margin-bottom: 16px; }
 .detail-section h3 { margin: 8px 0; color: #1f3864; }
 .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
@@ -67,3 +67,8 @@ th:nth-child(13), td:nth-child(13) { text-align: left; }
 .print-btn { background: #2d6cdf; color: #fff; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 13px; }
 .print-btn:hover { background: #1f57b8; }
 
+
+.detail-section a { text-decoration: none; }
+.detail-section a:hover { text-decoration: underline; }
+
+a, a:visited { color: #2d6cdf; }
