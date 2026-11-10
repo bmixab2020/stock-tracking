@@ -653,17 +653,21 @@ document.getElementById('exportBtn').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importInput').click());
-document.getElementById('importInput').addEventListener('change', (e) => {
+document.getElementById('importInput').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   if (!file.name.toLowerCase().startsWith('stock-lists')) { setStatus('File must start with stock-lists'); e.target.value = ''; return; }
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
       const data = JSON.parse(reader.result);
       saveLists(data);
-      populateListSelect();
-      setStatus('Imported lists');
+      populateListSelect('My Watchlist');
+      document.getElementById('listSelect').value = 'My Watchlist';
+      updateDeleteButton();
+      setStatus('Loading...');
+      await renderList('My Watchlist');
+      setStatus('');
     } catch { setStatus('Invalid JSON'); }
   };
   reader.readAsText(file);
