@@ -57,6 +57,13 @@ async function fetchQuote(symbol) {
       if (!meta || meta.regularMarketPrice == null) throw new Error('no data for ' + symbol);
       const prev = meta.chartPreviousClose || meta.previousClose || meta.regularMarketPrice;
       const price = meta.regularMarketPrice;
+      let targetPrice = null;
+      try {
+        const pageRes = await fetch(`https://proxy.cors.dev/https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`);
+        const html = await pageRes.text();
+        const tm = html.match(/data-field="targetMeanPrice"[^>]*>([\d.]+)/);
+        if (tm) targetPrice = parseFloat(tm[1]);
+      } catch (e) {}
       return {
         symbol: meta.symbol || symbol,
         regularMarketPrice: price,
@@ -65,6 +72,7 @@ async function fetchQuote(symbol) {
         fiftyTwoWeekLow: meta.fiftyTwoWeekLow,
         fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh,
         companyName: meta.longName || meta.shortName || symbol,
+        targetPrice: targetPrice,
       };
     } catch (e) {
       if (attempt === 2) throw e;
@@ -168,7 +176,7 @@ function updateTotals(name) {
     '<td></td><td></td><td>' + money(totalMkt) + '</td>' +
     '<td class="' + (totalGainPct >= 0 ? 'pos' : 'neg') + '">' + pct(totalGainPct) + '</td>' +
     '<td class="' + (totalGain >= 0 ? 'pos' : 'neg') + '">' + money(totalGain) + '</td>' +
-    '<td></td><td></td><td></td><td></td><td></td><td></td>' +
+    '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>' +
   '</tr>';
 }
 
@@ -229,6 +237,7 @@ async function renderList(name) {
         <td>${q?.earningsDate ?? '-'}</td>
         <td>${(q?.companyName ?? h.symbol).slice(0, 20)}</td>
         <td>${q?.marketCap ?? '-'}</td>
+        <td>${q?.targetPrice != null ? money(q.targetPrice) : '-'}</td>
         <td><button class="delete" data-symbol="${h.symbol}" title="Deleting stock from the list">x</button></td>
       `;
       body.appendChild(tr);
@@ -378,6 +387,8 @@ async function fetchDetail(symbol) {
     if (sectorMatch) data.sector = sectorMatch[1];
     const industryMatch = html.match(/\\"industryDisp\\":\\"([^"\\]+)\\"/);
     if (industryMatch) data.industry = industryMatch[1];
+    const targetMatch = html.match(/data-field="targetMeanPrice"[^>]*>([\d.]+)/);
+    if (targetMatch) data.targetPrice = parseFloat(targetMatch[1]);
     const divIdx = html.indexOf('Forward Dividend');
     if (divIdx !== -1) {
       const divSlice = html.slice(divIdx, divIdx + 200);
@@ -408,20 +419,32 @@ async function fetchDetail(symbol) {
       const d = slice.match(/\(([^)]+)\)/);
       const val = m ? m[1].trim() : '-';
       const dt = d ? d[1] : '';
-      return dt ? val + ' as of ' + dt : val;
+      const base = (val === '--' || val.startsWith('--')) ? 'N/A' : val;
+      return (base !== 'N/A' && dt) ? base + ' as of ' + dt : base;
     }
     data.shortRatio = extractStat('Short Ratio');
     data.shortPercent = extractStat('Short % of Float');
     const ssRaw = extractStat('Shares Short');
     data.sharesShort = ssRaw;
-    // extract as-of date from the label
+    if (ssRaw === 'N/A' || ssRaw.startsWith('--')) {
+      data.sharesShortTotal = 'N/A';
+      data.sharesShortDate = '-';
+    }
     const ssIdx = statsHtml.indexOf('Shares Short');
     const ssSlice = ssIdx !== -1 ? statsHtml.slice(ssIdx, ssIdx + 80) : '';
     const ssDateMatch = ssSlice.match(/\(([^)]+)\)/);
-    data.sharesShortDate = ssDateMatch ? ssDateMatch[1] : '-';
-    const ssNum = parseSharesShort(ssRaw);
-    data.sharesShortTotal = ssNum != null ? fmtSharesShort(ssNum) : '-';
-    data.shortInterestValue = (ssNum != null && data.price) ? (ssNum * data.price) : null;
+    if (ssRaw !== 'N/A' && !ssRaw.startsWith('--')) {
+      data.sharesShortDate = ssDateMatch ? ssDateMatch[1] : '-';
+    }
+    if (ssRaw !== 'N/A' && !ssRaw.startsWith('--')) {
+      const ssNum = parseSharesShort(ssRaw);
+      data.sharesShortTotal = ssNum != null ? fmtSharesShort(ssNum) : '-';
+      data.shortInterestValue = (ssNum != null && data.price) ? (ssNum * data.price) : null;
+    } else {
+      data.sharesShortTotal = 'N/A';
+      data.sharesShortDate = '-';
+      data.shortInterestValue = null;
+    }
   } catch (e) {}
 
   try {
@@ -449,7 +472,6 @@ function renderDetail(data) {
   const industry = data.industry || '-';
   const low = data.low != null ? money(data.low) : '-';
   const high = data.high != null ? money(data.high) : '-';
-  const upside = data.price && data.low && data.high ? (((data.high / data.price) - 1) * 100).toFixed(1) + '%' : '-';
   const newsHtml = (data.news && data.news.length)
     ? '<ul class="news-list">' + data.news.map(n => `<li><a href="${n.link}" target="_blank" rel="noopener">${n.title}</a></li>`).join('') + '</ul>'
     : '<p>No recent news found.</p>';
@@ -463,12 +485,12 @@ function renderDetail(data) {
       <div class="detail-grid">
         <div class="detail-item"><div class="label">Current Price</div><div class="value">${price}</div></div>
         <div class="detail-item"><div class="label">Market Cap</div><div class="value">${mc}</div></div>
+        <div class="detail-item"><div class="label">Target Price</div><div class="value">${data.targetPrice != null ? money(data.targetPrice) : '-'}</div></div>
         <div class="detail-item"><div class="label">52W Low / High</div><div class="value">${low} / ${high}</div></div>
         <div class="detail-item"><div class="label">Earnings Date</div><div class="value">${ed}</div></div>
         <div class="detail-item"><div class="label">Sector</div><div class="value">${sector}</div></div>
         <div class="detail-item"><div class="label">Industry</div><div class="value">${industry}</div></div>
         <div class="detail-item"><div class="label">Employees</div><div class="value">${employees}</div></div>
-        <div class="detail-item"><div class="label">Upside to 52W High</div><div class="value">${upside}</div></div>
       </div>
     </div>
     <div class="detail-section">
@@ -493,10 +515,10 @@ function renderDetail(data) {
         <div class="detail-item"><div class="label">Forward Dividend & Yield</div><div class="value">${data.dividend}</div></div>
         <div class="detail-item"><div class="label">Short Ratio</div><div class="value">${data.shortRatio}</div></div>
         <div class="detail-item"><div class="label">Short % of Float</div><div class="value">${data.shortPercent}</div></div>
-        <div class="detail-item"><div class="label">Shares Short</div><div class="value">${data.sharesShortTotal} as of ${data.sharesShortDate}</div></div>
-        <div class="detail-item"><div class="label">Short Interest Value</div><div class="value">${data.shortInterestValue != null ? money(data.shortInterestValue) : '-'}</div></div>
+        <div class="detail-item"><div class="label">Shares Short</div><div class="value">${(data.sharesShortTotal !== '-' && data.sharesShortTotal !== 'N/A') ? data.sharesShortTotal + ' as of ' + data.sharesShortDate : data.sharesShortTotal}</div></div>
+        <div class="detail-item"><div class="label">Short Interest Value</div><div class="value">${data.shortInterestValue != null ? money(data.shortInterestValue) : 'N/A'}</div></div>
       </div>
-      <p style="font-size:11px;color:#555;margin-top:8px;">Short data as of ${data.sharesShortDate}.</p>
+      ${data.sharesShortDate !== '-' && data.sharesShortDate !== '' ? '<p style="font-size:11px;color:#555;margin-top:8px;">Short data as of ' + data.sharesShortDate + '.</p>' : ''}
     </div>
     <div class="detail-section">
       <h3>Dividend History (Last 5 times)</h3>
@@ -621,7 +643,8 @@ document.getElementById('exportBtn').addEventListener('click', () => {
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+  const _d = new Date();
+  const ts = _d.getFullYear() + '-' + String(_d.getMonth() + 1).padStart(2, '0') + '-' + String(_d.getDate()).padStart(2, '0') + '-' + String(_d.getHours()).padStart(2, '0') + '-' + String(_d.getMinutes()).padStart(2, '0') + '-' + String(_d.getSeconds()).padStart(2, '0');
   a.href = url; a.download = 'stock-lists-' + ts + '.json'; a.click();
   URL.revokeObjectURL(url);
 });
@@ -680,7 +703,8 @@ document.getElementById('detailModal').addEventListener('click', (e) => {
 });
 
 document.getElementById('printDetailBtn').addEventListener('click', () => {
-  const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+  const _d = new Date();
+  const ts = _d.getFullYear() + '-' + String(_d.getMonth() + 1).padStart(2, '0') + '-' + String(_d.getDate()).padStart(2, '0') + '-' + String(_d.getHours()).padStart(2, '0') + '-' + String(_d.getMinutes()).padStart(2, '0') + '-' + String(_d.getSeconds()).padStart(2, '0');
   document.title = 'stockTrack' + currentDetailSymbol + ts;
   document.body.classList.add('printing-detail');
   window.print();
@@ -699,3 +723,7 @@ renderList('My Watchlist');
 
 
 window.__openDetail = openDetail;
+
+window.fetchQuote = fetchQuote;
+
+window.__fetchQuote = fetchQuote;
