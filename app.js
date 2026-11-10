@@ -662,6 +662,8 @@ document.getElementById('importInput').addEventListener('change', async (e) => {
     try {
       const data = JSON.parse(reader.result);
       saveLists(data);
+      const lists = loadLists();
+      if (!lists['My Watchlist']) { lists['My Watchlist'] = []; saveLists(lists); }
       populateListSelect('My Watchlist');
       document.getElementById('listSelect').value = 'My Watchlist';
       updateDeleteButton();
