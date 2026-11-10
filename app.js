@@ -14,6 +14,7 @@ function fmt(n, decimals = 2) {
   return Number(n).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 function money(n) { return '$' + fmt(n); }
+function priceMoney(n) { if (n === null || n === undefined || isNaN(n)) return '-'; const decimals = Math.abs(n) < 1 ? 3 : 2; return '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
 function pct(n) { if (n === null || n === undefined || isNaN(n)) return '-'; return (n >= 0 ? '+' : '') + fmt(n) + '%'; }
 
 async function fetchExtra(symbol) {
@@ -72,6 +73,7 @@ async function fetchQuote(symbol) {
         fiftyTwoWeekLow: meta.fiftyTwoWeekLow,
         fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh,
         companyName: meta.longName || meta.shortName || symbol,
+        tradeVol: meta.regularMarketVolume,
         targetPrice: targetPrice,
       };
     } catch (e) {
@@ -128,16 +130,18 @@ function sortValue(h, col) {
     case 1: return price;
     case 2: return dayPct;
     case 3: return dayDollar;
-    case 4: return costAvg;
-    case 5: return qty;
-    case 6: return mktVal;
-    case 7: return gainPct;
-    case 8: return gainDollar;
-    case 9: return low;
-    case 10: return high;
-    case 11: return q?.earningsDate ?? '-';
-    case 12: return company;
-    case 13: return q?.marketCap ?? '-';
+    case 4: return q?.tradeVol ?? 0;
+    case 5: return q?.marketCap ?? '-';
+    case 6: return low;
+    case 7: return high;
+    case 8: return q?.earningsDate ?? '-';
+    case 9: return q?.targetPrice ?? 0;
+    case 10: return costAvg;
+    case 11: return qty;
+    case 12: return mktVal;
+    case 13: return gainPct;
+    case 14: return gainDollar;
+    case 15: return company;
     default: return 0;
   }
 }
@@ -172,11 +176,23 @@ function updateTotals(name) {
   const totalGainPct = totalCost > 0 ? ((totalMkt / totalCost) - 1) * 100 : 0;
   const foot = document.getElementById('stockFoot');
   foot.innerHTML = '<tr>' +
-    '<td>Total</td><td></td><td></td><td class="' + (totalDay >= 0 ? 'pos' : 'neg') + '">' + money(totalDay) + '</td>' +
-    '<td></td><td></td><td>' + money(totalMkt) + '</td>' +
-    '<td class="' + (totalGainPct >= 0 ? 'pos' : 'neg') + '">' + pct(totalGainPct) + '</td>' +
-    '<td class="' + (totalGain >= 0 ? 'pos' : 'neg') + '">' + money(totalGain) + '</td>' +
-    '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>' +
+    '<td>Total</td>' +                                    // Stock Symbol
+    '<td></td>' +                                         // Price
+    '<td></td>' +                                         // Day Chng%
+    '<td class="' + (totalDay >= 0 ? 'pos' : 'neg') + '">' + money(totalDay) + '</td>' +  // Day Chng $
+    '<td></td>' +                                         // Trade Vol
+    '<td></td>' +                                         // Market Cap
+    '<td></td>' +                                         // 52 Weeks Low
+    '<td></td>' +                                         // 52 Weeks High
+    '<td></td>' +                                         // Earning Date
+    '<td></td>' +                                         // Target Price
+    '<td></td>' +                                         // Cost Average
+    '<td></td>' +                                         // Quantity
+    '<td>' + money(totalMkt) + '</td>' +                   // Mkt Val
+    '<td class="' + (totalGainPct >= 0 ? 'pos' : 'neg') + '">' + pct(totalGainPct) + '</td>' +  // Gain/Loss %
+    '<td class="' + (totalGain >= 0 ? 'pos' : 'neg') + '">' + money(totalGain) + '</td>' +      // Gain/Loss $
+    '<td></td>' +                                         // Company Name
+    '<td></td>' +                                         // delete
   '</tr>';
 }
 
@@ -225,20 +241,21 @@ async function renderList(name) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><a href="#" class="sym-link" data-symbol="${h.symbol}" title="See detail on this stock">${h.symbol}</a></td>
-        <td>${money(price)}</td>
+        <td>${priceMoney(price)}</td>
         <td class="${dayPct >= 0 ? 'pos' : 'neg'}">${pct(dayPct)}</td>
         <td class="${dayDollar >= 0 ? 'pos' : 'neg'}">${money(dayDollar)}</td>
+        <td>${(q?.tradeVol ?? 0).toLocaleString()}</td>
+        <td>${q?.marketCap ?? '-'}</td>
+        <td>${money(low)}</td>
+        <td>${money(high)}</td>
+        <td>${q?.earningsDate ?? '-'}</td>
+        <td>${q?.targetPrice != null ? money(q.targetPrice) : '-'}</td>
         <td><input class="cell-input" data-symbol="${h.symbol}" data-field="costAvg" type="text" value="$${Number(costAvg).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}" /></td>
         <td><input class="cell-input" data-symbol="${h.symbol}" data-field="qty" type="text" value="${Number(qty).toLocaleString()}" /></td>
         <td>${money(mktVal)}</td>
         <td class="${gainPct >= 0 ? 'pos' : 'neg'}">${pct(gainPct)}</td>
         <td class="${gainDollar >= 0 ? 'pos' : 'neg'}">${money(gainDollar)}</td>
-        <td>${money(low)}</td>
-        <td>${money(high)}</td>
-        <td>${q?.earningsDate ?? '-'}</td>
         <td>${(q?.companyName ?? h.symbol).slice(0, 20)}</td>
-        <td>${q?.marketCap ?? '-'}</td>
-        <td>${q?.targetPrice != null ? money(q.targetPrice) : '-'}</td>
         <td><button class="delete" data-symbol="${h.symbol}" title="Deleting stock from the list">x</button></td>
       `;
       body.appendChild(tr);
@@ -266,11 +283,11 @@ async function renderList(name) {
           const gainDollar = (price - costAvg) * qty;
           const gainPct = costAvg > 0 ? ((price / costAvg) - 1) * 100 : 0;
           const cells = tr.querySelectorAll('td');
-          cells[6].textContent = money(mktVal);
-          cells[7].textContent = pct(gainPct);
-          cells[7].className = gainPct >= 0 ? 'pos' : 'neg';
-          cells[8].textContent = money(gainDollar);
-          cells[8].className = gainDollar >= 0 ? 'pos' : 'neg';
+          cells[12].textContent = money(mktVal);
+          cells[13].textContent = pct(gainPct);
+          cells[13].className = gainPct >= 0 ? 'pos' : 'neg';
+          cells[14].textContent = money(gainDollar);
+          cells[14].className = gainDollar >= 0 ? 'pos' : 'neg';
           updateTotals(name);
         }
       });
@@ -465,15 +482,15 @@ async function fetchDetail(symbol) {
 
 
 function renderDetail(data) {
-  const price = data.price != null ? '$' + Number(data.price).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '-';
+  const price = priceMoney(data.price);
   const mc = data.marketCap || '-';
   const ed = data.earningsDate || '-';
   const desc = data.description || 'No description available.';
   const employees = data.employees || '-';
   const sector = data.sector || '-';
   const industry = data.industry || '-';
-  const low = data.low != null ? money(data.low) : '-';
-  const high = data.high != null ? money(data.high) : '-';
+  const low = priceMoney(data.low);
+  const high = priceMoney(data.high);
   const newsHtml = (data.news && data.news.length)
     ? '<ul class="news-list">' + data.news.map(n => `<li><a href="${n.link}" target="_blank" rel="noopener">${n.title}</a></li>`).join('') + '</ul>'
     : '<p>No recent news found.</p>';
@@ -686,7 +703,10 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   renderList('My Watchlist');
   setStatus('Cleared');
 });
-document.getElementById('printBtn').addEventListener('click', () => { window.print(); });
+document.getElementById('printBtn').addEventListener('click', () => {
+  document.title = 'StockTracking-' + new Date().toISOString().slice(0, 10);
+  window.print();
+});
 
 const baseHeaders = Array.from(document.querySelectorAll('th')).map(th => th.textContent);
 function updateSortIcons() {
