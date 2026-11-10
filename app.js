@@ -183,6 +183,7 @@ function updateTotals(name) {
 async function renderList(name) {
   if (isRendering) return;
   isRendering = true;
+  showLoading();
   try {
     const body = document.getElementById('stockBody');
     const foot = document.getElementById('stockFoot');
@@ -294,6 +295,7 @@ async function renderList(name) {
     updateTotals(name);
   } finally {
     isRendering = false;
+    hideLoading();
   }
 }
 
@@ -565,6 +567,8 @@ function openDetail(symbol) {
 }
 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
+function showLoading() { document.getElementById('loadingOverlay').classList.add('show'); }
+function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
 
 function updateDeleteButton() {
   const btn = document.getElementById('deleteListBtn');
