@@ -288,8 +288,16 @@ async function renderList(name) {
   }
 }
 
+function fmtSharesShort(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  if (n >= 1e12) return (n / 1e12).toFixed(2) + ' Tril';
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + ' Bil';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + ' Mil';
+  return Number(n).toLocaleString();
+}
+
 async function fetchDetail(symbol) {
-  const data = { symbol, price: null, marketCap: '-', earningsDate: '-', company: symbol, description: '', employees: '-', news: [], splits: [], dividends: [], recentShortVolume: [], history: [], dividend: '-', shortRatio: '-', shortPercent: '-', sharesShort: '-', marketCapRaw: '-' };
+  const data = { symbol, price: null, marketCap: '-', earningsDate: '-', company: symbol, description: '', employees: '-', news: [], splits: [], dividends: [], recentShortVolume: [], history: [], dividend: '-', shortRatio: '-', shortPercent: '-', sharesShort: '-', sharesShortTotal: '-', sharesShortDate: '-', shortInterestValue: null, marketCapRaw: '-' };
   try {
     const chartUrl = `https://proxy.cors.dev/https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
     const chartRes = await fetch(chartUrl);
@@ -381,6 +389,17 @@ async function fetchDetail(symbol) {
     const statsUrl = 'https://proxy.cors.dev/https://finance.yahoo.com/quote/' + encodeURIComponent(symbol) + '/key-statistics';
     const statsRes = await fetch(statsUrl);
     const statsHtml = await statsRes.text();
+    function parseSharesShort(str) {
+      const m = str.match(/([\d.]+)\s*([KMBT]?)/i);
+      if (!m) return null;
+      let num = parseFloat(m[1]);
+      const suf = m[2].toUpperCase();
+      if (suf === 'K') num *= 1e3;
+      else if (suf === 'M') num *= 1e6;
+      else if (suf === 'B') num *= 1e9;
+      else if (suf === 'T') num *= 1e12;
+      return num;
+    }
     function extractStat(label) {
       const idx = statsHtml.indexOf(label);
       if (idx === -1) return '-';
@@ -389,11 +408,20 @@ async function fetchDetail(symbol) {
       const d = slice.match(/\(([^)]+)\)/);
       const val = m ? m[1].trim() : '-';
       const dt = d ? d[1] : '';
-      return dt ? val + ' (' + dt + ')' : val;
+      return dt ? val + ' as of ' + dt : val;
     }
     data.shortRatio = extractStat('Short Ratio');
     data.shortPercent = extractStat('Short % of Float');
-    data.sharesShort = extractStat('Shares Short');
+    const ssRaw = extractStat('Shares Short');
+    data.sharesShort = ssRaw;
+    // extract as-of date from the label
+    const ssIdx = statsHtml.indexOf('Shares Short');
+    const ssSlice = ssIdx !== -1 ? statsHtml.slice(ssIdx, ssIdx + 80) : '';
+    const ssDateMatch = ssSlice.match(/\(([^)]+)\)/);
+    data.sharesShortDate = ssDateMatch ? ssDateMatch[1] : '-';
+    const ssNum = parseSharesShort(ssRaw);
+    data.sharesShortTotal = ssNum != null ? fmtSharesShort(ssNum) : '-';
+    data.shortInterestValue = (ssNum != null && data.price) ? (ssNum * data.price) : null;
   } catch (e) {}
 
   try {
@@ -465,8 +493,10 @@ function renderDetail(data) {
         <div class="detail-item"><div class="label">Forward Dividend & Yield</div><div class="value">${data.dividend}</div></div>
         <div class="detail-item"><div class="label">Short Ratio</div><div class="value">${data.shortRatio}</div></div>
         <div class="detail-item"><div class="label">Short % of Float</div><div class="value">${data.shortPercent}</div></div>
-        <div class="detail-item"><div class="label">Shares Short</div><div class="value">${data.sharesShort}</div></div>
+        <div class="detail-item"><div class="label">Shares Short</div><div class="value">${data.sharesShortTotal} as of ${data.sharesShortDate}</div></div>
+        <div class="detail-item"><div class="label">Short Interest Value</div><div class="value">${data.shortInterestValue != null ? money(data.shortInterestValue) : '-'}</div></div>
       </div>
+      <p style="font-size:11px;color:#555;margin-top:8px;">Short data as of ${data.sharesShortDate}.</p>
     </div>
     <div class="detail-section">
       <h3>Dividend History (Last 5 times)</h3>
@@ -667,3 +697,5 @@ document.getElementById('listSelect').value = 'My Watchlist';
 updateDeleteButton();
 renderList('My Watchlist');
 
+
+window.__openDetail = openDetail;
