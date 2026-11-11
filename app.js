@@ -544,7 +544,7 @@ function renderDetail(data) {
       ${data.dividends && data.dividends.length ? '<ul>' + data.dividends.map(d => `<li>${d.date}: $${Number(d.amount).toFixed(4)}</li>`).join('') + '</ul>' : '<p>No dividends recorded.</p>'}
     </div>
     <div class="detail-section">
-      <h3>Recent Short Volume (Last 5 days)</h3>
+      <h3>Recent Trade Volume (Last 5 days)</h3>
       ${data.recentShortVolume && data.recentShortVolume.length ? '<ul>' + data.recentShortVolume.map(v => `<li>${v.date}: ${Number(v.volume).toLocaleString()}</li>`).join('') + '</ul>' : '<p>No volume data.</p>'}
     </div>
     <div class="detail-section">
@@ -734,8 +734,8 @@ document.getElementById('detailModal').addEventListener('click', (e) => {
 
 document.getElementById('printDetailBtn').addEventListener('click', () => {
   const _d = new Date();
-  const ts = _d.getFullYear() + '-' + String(_d.getMonth() + 1).padStart(2, '0') + '-' + String(_d.getDate()).padStart(2, '0') + '-' + String(_d.getHours()).padStart(2, '0') + '-' + String(_d.getMinutes()).padStart(2, '0') + '-' + String(_d.getSeconds()).padStart(2, '0');
-  document.title = 'stockTrack' + currentDetailSymbol + ts;
+  const ts = '-' + _d.getFullYear() + '-' + String(_d.getMonth() + 1).padStart(2, '0') + '-' + String(_d.getDate()).padStart(2, '0') + '-' + String(_d.getHours()).padStart(2, '0') + '-' + String(_d.getMinutes()).padStart(2, '0');
+  document.title = 'stockTrack-' + currentDetailSymbol + ts;
   document.body.classList.add('printing-detail');
   window.print();
 });
