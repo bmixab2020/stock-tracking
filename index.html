@@ -13,6 +13,7 @@
   <main>
     <section class="search-section">
       <input id="symbolInput" type="text" placeholder="Stock symbol (e.g. AAPL)" />
+      <button id="addBtn" title="Search and add stock symbol to selected watchlist">Search &amp; Add</button>
       <div class="field" id="listField">
         <select id="listSelect"></select>
         <div id="newListWrap" style="display:none; gap:4px; align-items:center;">
@@ -21,8 +22,7 @@
           <button id="cancelNewListBtn" title="Cancel add new watchlist">Cancel</button>
         </div>
       </div>
-      <button id="addBtn">Search &amp; Add</button>
-      <button id="deleteListBtn">Delete List</button>
+      <button id="deleteListBtn" title="Delete the selected watchlist">Delete watchlist</button>
       <span id="status"></span>
     </section>
 
