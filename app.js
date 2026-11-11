@@ -99,6 +99,10 @@ function populateListSelect(selected) {
     opt.value = '';
     opt.textContent = '(no lists)';
     sel.appendChild(opt);
+    const addOpt = document.createElement('option');
+    addOpt.value = '__new__';
+    addOpt.textContent = '+ Add new watchlist';
+    sel.appendChild(addOpt);
     updateDeleteButton();
     return;
   }
@@ -109,6 +113,10 @@ function populateListSelect(selected) {
     if (n === selected) opt.selected = true;
     sel.appendChild(opt);
   }
+  const addOpt = document.createElement('option');
+  addOpt.value = '__new__';
+  addOpt.textContent = '+ Add new watchlist';
+  sel.appendChild(addOpt);
   updateDeleteButton();
 }
 
@@ -624,29 +632,73 @@ async function addStock() {
   await renderList(listName);
 }
 
-function addViewList() {
-  const name = document.getElementById('viewNameInput').value.trim();
-  if (!name) { setStatus('Enter a view name'); return; }
+function showNewListInput() {
+  document.getElementById('listSelect').style.display = 'none';
+  document.getElementById('newListWrap').style.display = 'flex';
+  document.getElementById('newListInput').value = '';
+  document.getElementById('newListInput').focus();
+  const addBtn = document.getElementById('addBtn');
+  addBtn.disabled = true;
+  addBtn.style.opacity = '0.5';
+  addBtn.style.cursor = 'not-allowed';
+  const refreshBtn = document.getElementById('refreshBtn');
+  refreshBtn.disabled = true;
+  refreshBtn.style.opacity = '0.5';
+  refreshBtn.style.cursor = 'not-allowed';
+}
+function hideNewListInput() {
+  document.getElementById('newListWrap').style.display = 'none';
+  document.getElementById('listSelect').style.display = '';
+  const addBtn = document.getElementById('addBtn');
+  addBtn.disabled = false;
+  addBtn.style.opacity = '1';
+  addBtn.style.cursor = 'pointer';
+  const refreshBtn = document.getElementById('refreshBtn');
+  refreshBtn.disabled = false;
+  refreshBtn.style.opacity = '1';
+  refreshBtn.style.cursor = 'pointer';
+}
+function saveNewList() {
+  const name = document.getElementById('newListInput').value.trim();
+  if (!name) { setStatus('Enter a watch list name'); return; }
   const lists = loadLists();
   if (!lists[name]) lists[name] = [];
   saveLists(lists);
+  hideNewListInput();
   populateListSelect(name);
   document.getElementById('listSelect').value = name;
   updateDeleteButton();
-  document.getElementById('viewNameInput').value = '';
   renderList(name);
   setStatus('Created list ' + name);
+}
+function cancelNewList() {
+  hideNewListInput();
+  const prev = getListNames().find(n => n !== '__new__') || 'My Watchlist';
+  document.getElementById('listSelect').value = prev;
+  updateDeleteButton();
 }
 
 document.getElementById('addBtn').addEventListener('click', addStock);
 document.getElementById('symbolInput').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });
 document.getElementById('symbolInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') addStock(); });
-document.getElementById('addViewListBtn').addEventListener('click', addViewList);
+document.getElementById('saveNewListBtn').addEventListener('click', saveNewList);
+document.getElementById('cancelNewListBtn').addEventListener('click', cancelNewList);
+document.getElementById('newListInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveNewList(); });
 document.getElementById('refreshBtn').addEventListener('click', () => {
   const name = document.getElementById('listSelect').value;
   if (name) renderList(name);
 });
-document.getElementById('listSelect').addEventListener('change', (e) => { renderList(e.target.value); updateDeleteButton(); });
+document.getElementById('listSelect').addEventListener('change', (e) => {
+  const value = e.target.value;
+  if (value === '__new__') {
+    showNewListInput();
+    return;
+  }
+  document.getElementById('newListWrap').style.display = 'none';
+  document.getElementById('listSelect').style.display = '';
+  renderList(value);
+  updateDeleteButton();
+});
 document.getElementById('deleteListBtn').addEventListener('click', () => {
   const name = document.getElementById('listSelect').value;
   if (!name || name === 'My Watchlist') return;
@@ -681,6 +733,7 @@ document.getElementById('importInput').addEventListener('change', async (e) => {
       saveLists(data);
       const lists = loadLists();
       if (!lists['My Watchlist']) { lists['My Watchlist'] = []; saveLists(lists); }
+      hideNewListInput();
       populateListSelect('My Watchlist');
       document.getElementById('listSelect').value = 'My Watchlist';
       updateDeleteButton();

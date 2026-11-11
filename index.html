@@ -13,8 +13,13 @@
   <main>
     <section class="search-section">
       <input id="symbolInput" type="text" placeholder="Stock symbol (e.g. AAPL)" />
-      <div class="field">
+      <div class="field" id="listField">
         <select id="listSelect"></select>
+        <div id="newListWrap" style="display:none; gap:4px; align-items:center;">
+          <input id="newListInput" type="text" placeholder="Watchlist Name" />
+          <button id="saveNewListBtn" title="Save new watchlist">Save</button>
+          <button id="cancelNewListBtn" title="Cancel add new watchlist">Cancel</button>
+        </div>
       </div>
       <button id="addBtn">Search &amp; Add</button>
       <button id="deleteListBtn">Delete List</button>
@@ -22,8 +27,6 @@
     </section>
 
     <section class="view-section">
-      <input id="viewNameInput" type="text" placeholder="Watch List Name" />
-      <button id="addViewListBtn">Add Watch List</button>
       <button id="refreshBtn">Refresh</button>
       <button id="exportBtn" title="Export local repository">Export</button>
       <input id="importInput" type="file" accept="application/json" style="display:none" />
