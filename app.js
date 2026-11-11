@@ -704,8 +704,11 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   setStatus('Cleared');
 });
 document.getElementById('printBtn').addEventListener('click', () => {
-  document.title = 'StockTracking-' + new Date().toISOString().slice(0, 10);
+  const t = 'StockTracking-' + new Date().toISOString().slice(0, 10);
+  document.title = t;
+  try { if (window.parent && window.parent !== window) window.parent.document.title = t; } catch (e) {}
   window.print();
+  setTimeout(() => { try { if (window.parent && window.parent !== window) window.parent.document.title = 'Useful Apps'; } catch (e) {} }, 1000);
 });
 
 const baseHeaders = Array.from(document.querySelectorAll('th')).map(th => th.textContent);
@@ -734,10 +737,13 @@ document.getElementById('detailModal').addEventListener('click', (e) => {
 
 document.getElementById('printDetailBtn').addEventListener('click', () => {
   const _d = new Date();
-  const ts = '-' + _d.getFullYear() + '-' + String(_d.getMonth() + 1).padStart(2, '0') + '-' + String(_d.getDate()).padStart(2, '0') + '-' + String(_d.getHours()).padStart(2, '0') + '-' + String(_d.getMinutes()).padStart(2, '0');
-  document.title = 'stockTrack-' + currentDetailSymbol + ts;
+  const ts = '-' + _d.getFullYear() + '-' + String(_d.getMonth() + 1).padStart(2, '0') + '-' + String(_d.getDate()).padStart(2, '0') + '-' + String(_d.getHours()).padStart(2, '0') + '-' + String(_d.getMinutes()).padStart(2, '0') + '-' + String(_d.getSeconds()).padStart(2, '0');
+  const t = 'stockTrack-' + currentDetailSymbol + ts;
+  document.title = t;
+  try { if (window.parent && window.parent !== window) window.parent.document.title = t; } catch (e) {}
   document.body.classList.add('printing-detail');
   window.print();
+  setTimeout(() => { document.body.classList.remove('printing-detail'); try { if (window.parent && window.parent !== window) window.parent.document.title = 'Useful Apps'; } catch (e) {} }, 1000);
 });
 window.addEventListener('afterprint', () => {
   document.body.classList.remove('printing-detail');
