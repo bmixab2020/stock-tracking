@@ -96,9 +96,13 @@ document.getElementById('symbolInput').addEventListener('keydown', (e) => { if (
 document.getElementById('saveNewListBtn').addEventListener('click', saveNewList);
 document.getElementById('cancelNewListBtn').addEventListener('click', cancelNewList);
 document.getElementById('newListInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveNewList(); });
-document.getElementById('refreshBtn').addEventListener('click', () => {
+document.getElementById('refreshBtn').addEventListener('click', async () => {
   const name = document.getElementById('listSelect').value;
-  if (name) renderList(name);
+  if (name) {
+    setStatus('Loading ' + name + '...');
+    await renderList(name);
+    setStatus('');
+  }
 });
 document.getElementById('listSelect').addEventListener('change', async (e) => {
   const value = e.target.value;
@@ -123,7 +127,7 @@ document.getElementById('deleteListBtn').addEventListener('click', () => {
   populateListSelect('My Watchlist');
   document.getElementById('listSelect').value = 'My Watchlist';
   updateDeleteButton();
-  setStatus('Loading My Watchlist...');
+  setStatus('');
   renderList('My Watchlist');
 });
 document.getElementById('exportBtn').addEventListener('click', () => {
