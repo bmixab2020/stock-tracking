@@ -123,6 +123,7 @@ document.getElementById('deleteListBtn').addEventListener('click', () => {
   populateListSelect('My Watchlist');
   document.getElementById('listSelect').value = 'My Watchlist';
   updateDeleteButton();
+  setStatus('Loading My Watchlist...');
   renderList('My Watchlist');
 });
 document.getElementById('exportBtn').addEventListener('click', () => {
@@ -168,8 +169,8 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   populateListSelect('My Watchlist');
   document.getElementById('listSelect').value = 'My Watchlist';
   updateDeleteButton();
-  renderList('My Watchlist');
-  setStatus('Cleared');
+  setStatus('Loading My Watchlist...');
+  renderList('My Watchlist').then(() => setStatus('Cleared'));
 });
 document.getElementById('printBtn').addEventListener('click', () => {
   const t = 'StockTracking-' + new Date().toISOString().slice(0, 10);
@@ -224,6 +225,7 @@ if (!_lists['My Watchlist']) { _lists['My Watchlist'] = []; saveLists(_lists); }
 populateListSelect('My Watchlist');
 document.getElementById('listSelect').value = 'My Watchlist';
 updateDeleteButton();
-renderList('My Watchlist');
+setStatus('Loading My Watchlist...');
+renderList('My Watchlist').then(() => setStatus(''));
 
 
