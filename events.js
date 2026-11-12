@@ -100,7 +100,7 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   const name = document.getElementById('listSelect').value;
   if (name) renderList(name);
 });
-document.getElementById('listSelect').addEventListener('change', (e) => {
+document.getElementById('listSelect').addEventListener('change', async (e) => {
   const value = e.target.value;
   if (value === '__new__') {
     showNewListInput();
@@ -108,8 +108,10 @@ document.getElementById('listSelect').addEventListener('change', (e) => {
   }
   document.getElementById('newListWrap').style.display = 'none';
   document.getElementById('listSelect').style.display = '';
-  renderList(value);
+  setStatus('Loading ' + value + '...');
+  await renderList(value);
   updateDeleteButton();
+  setStatus('');
 });
 document.getElementById('deleteListBtn').addEventListener('click', () => {
   const name = document.getElementById('listSelect').value;
@@ -118,10 +120,10 @@ document.getElementById('deleteListBtn').addEventListener('click', () => {
   const lists = loadLists();
   delete lists[name];
   saveLists(lists);
-  populateListSelect();
-  document.getElementById('stockBody').innerHTML = '';
-  document.getElementById('stockFoot').innerHTML = '';
+  populateListSelect('My Watchlist');
+  document.getElementById('listSelect').value = 'My Watchlist';
   updateDeleteButton();
+  renderList('My Watchlist');
 });
 document.getElementById('exportBtn').addEventListener('click', () => {
   const data = JSON.stringify(loadLists(), null, 2);
